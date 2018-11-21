@@ -480,6 +480,19 @@ library(gapminder)
 
 ggplot(india.data %>% filter(Avg_Cost_USD<50),aes(y=Aggregate_Rating,x=Avg_Cost_USD))+geom_point()+stat_smooth(method="loess")
 
+#VOTES DISTRIBUTION
+#trying to find a good plot to spot distribution of votes
+ggplot(zomato7,aes(x=Votes,fill=Country))+geom_histogram(bins=10)#how can i see it better
+#skewed to the right, many outliers
+
+#distribution of votes in only india
+ggplot(india.data2,aes(x=Votes))+geom_histogram(binxs=10)
+#not much of a difference, still rightly skewed 
+
+#histogram seperated by india vs non india
+ggplot(zomato7,aes(x=Votes,colour=IndiaYN))+geom_histogram(bins=10,position="dodge")
+#india more dominant (but we see to what degree)
+
 #----------- REGRESSION ONLY ON INDIA -------
 costreg.i = lm(Aggregate_Rating~Avg_Cost_USD,data=india.data,weights = Votes)
 summary(costreg.i)
@@ -585,8 +598,30 @@ plot(multireg2i,1) #good
 plot(multireg2i,2)
 plot(multireg2i,3)
 
-#how does india fair to the rest of the world?
-india.row = lm(zomato7,)
+#######VOTES REGRESSION
+#Testing VOTES
+#summary(lm(Votes~Aggregate_Rating,data=zomato7)) #x y switched
+VotesC=lm(Aggregate_Rating~Votes,data=zomato7) #standard error decreases by a lot
+summary(VotesC)
+#test is significant for both, hence votes is a significant factor in the way places get rated
+VotesCPlot=ggplot(data=VotesC,aes(y=.resid, x=.fitted))+geom_point()+geom_smooth(se=F)
+VotesCPlot
+#JUST INDIA
+VotesI=lm(Aggregate_Rating~Votes,data=india.data2)
+summary(VotesI)
+VotesIPlot=ggplot(data=VotesI,aes(y=.resid, x=.fitted))+geom_point()+geom_smooth(se=F)
+VotesIPlot
+#comparing both
+grid.arrange(VotesCPlot, VotesIPlot, nrow=2) #same?? (not really but)
+
+ggplot(data=india.data,aes(y=log(Votes),x=Aggregate_Rating))+geom_point(alpha=0.5)+geom_smooth()
+VotesI.2=lm(Aggregate_Rating~Votes+log(Votes),data=india.data2)
+summary(VotesI.2) #increased R^2
+
+ggplot(data=VotesI.2,aes(y=.resid,x=.fitted))+geom_point()+geom_smooth(se=F)
+
+VotesI.3=lm(Aggregate_Rating~Votes+exp(Votes),data=india.data5)
+
 
 
 #--------- PREDICTING WHAT RATING RESTAURANT YOU WILL ATTEND -------
@@ -665,8 +700,26 @@ View(india.data4 %>% select(Principal_Cuisines,Cuisines,`Indian Food Served?`))
 
 #SOLUTION TWO: MANUAL + TIME CONSUMING BUT MORE ACCURATE -> EXTERNAL RESEARCH DONE TO IDENTIFY CUISINES
 #CREATING A VECTOR CONTAINING THE INDIAN CUISINES -> IF/ELSE -> NEW COL ADDED TO india.data2
-c.df = c("Andhra","Assamese","Bengali","Malwani","Naga","North","South")
+c.df = c("Andhra","Assamese","Awadhi","Bengali","Bihari","Biryani","Goan","Gujarati","Hyderabadi","Indian","Kashmiri","Kerala","Lucknowi","Maharashtrian","Malwani","Mithai","Mughlai","Naga","Nepalese","North","Oriya","Rajasthani","South","Street") #vector of indian cuisines
 india.data2$YN = ifelse(india.data$Principal_Cuisines %in% c.df, "INDIAN","OTHER")
 View(india.data %>% select(Principal_Cuisines,YN))
 #worked
+ggplot(india.data4,aes(x=Rating_Factor,fill=india.data2$YN))+geom_bar(position="dodge")
+#insial food is not necessarily better in india (so i dont thinik the local food prediction is correct)
 
+####Tukey test####
+#trying to run a tukey test to find sig in variance of rating in developed countries
+#vector of countries that are developed
+developedC= c("Australia","Canada","New Zealand","UAE","United Kingdom","United States")
+#making new coulumn to identify developed and developing countries
+zomato8 = zomato7 %>% mutate(Developed_Developing = ifelse(Country %in% developedC,'Developed','Developing'))
+View(zomato8) #worked
+zomato8.aov=aov(Transformed_Rating~Developed_Developing,data=zomato8)
+TukeyHSD(zomato8.aov)
+#this is saying that the difference in rating within developed and developing countries isnt really that significant 
+#using transformed rating is even more insignificant 
+
+#want to see if there is a difference WITHIN developed countries 
+#have to make new datasets with only dveloped rows showing 
+developedCdata = zomato8[c("Australia","Canada","New Zealand","UAE","United Kingdom","United States"), ]
+View(developedCdata)
