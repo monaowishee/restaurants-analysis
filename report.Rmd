@@ -1,0 +1,154 @@
+---
+output: 
+  flexdashboard::flex_dashboard:
+    theme: readable
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+```
+
+
+Introduction {data-icon="fa-book-open"}
+=====================================  
+
+
+Tidying Data {data-icon="fa-table"}
+=====================================  
+
+### **Loading Files From Kaggle**
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+#------LOAD DATA------------
+library(tidyverse)
+library(readxl)
+library(leaflet)
+library(flexdashboard)
+library(gridExtra)
+library(broom)
+library(plotly)
+
+#------LOAD FILES---------
+CCodesfile="Country-Code.xlsx"
+Zomatofile="zomato.xlsx"
+CurrencyFile="CurrencyRates.xlsx"
+
+CCodes=read_excel(CCodesfile) #importing country code file
+zomato=read_excel(Zomatofile) #importing main zomato file
+Currency=read_excel(CurrencyFile) #importing currency file
+
+```
+
+> The original zomato data set contained varying currencies per country, making it difficult to compare each restaurant fairly. To approach this problem, we created a seperate currency table containing USD conversion rates per country.
+
+###Data Wrangling
+
+```{r echo=TRUE, warning=FALSE}
+#------ GET RID OF SOME COLUMNS & ADD NEW ONES -------------
+zomato=zomato %>% select (-c(Rating_Color,Switch_To_Order_Menu,Address,Locality_Verbose,Currency))
+#we remove currency column as it is incorrect and contains too many unique symbols
+
+#add in new columns: Country Names according to Country Code & proper currency names with conversion rates
+zomato = zomato %>% left_join(CCodes) 
+zomato = zomato %>% left_join(Currency) 
+
+#add in new column: USD Cost (for equal comparison)
+zomato = zomato %>% mutate(Avg_Cost_USD = Average_Cost_For_Two*`Conversion Rate (USD)`) 
+#Multiplied Currency Column by it's conversion rate
+
+#replacing Cuisines col. with Principal_Cuisines (the first category of cuisines for every country row)
+zomato= zomato %>% separate(Cuisines,into=c("Principal_Cuisines"),sep=',') #store "primary" cuisine types into new column and replace old with this
+
+#Make sure rating categories are ordered:
+zomato = zomato %>% mutate(Rating_Text=ordered(Rating_Text,levels=c("Excellent","Very Good","Good","Average","Poor")))
+```
+
+> Although the data is presented pre-cleaned into appropriate columns, there still remains some level of manipulation that needs to be done. We begin by removing unnecessary columns and adding in necessary ones.
+> We add in Countries by country code via the country code file provided by kaggle
+> Then we add in our own currency conversion file, allowing us to convert average cost for two into the USD amount and storing it in it's own column.
+> There were many cuisines listed per restaurant, so to simplify things for analytic purposes, we extract the first cuisine listed by each restaurant.
+
+
+###Removing Missing Values
+```{r echo=TRUE, warning=FALSE}
+#---------REMOVE MISSING VALUES----------
+#we notice that there are several "0" rated stores for even expensive places so we decided to remove no rating stores
+zomato[zomato == 0] = NA #remove values that have zero
+zomato[zomato == "Not rated"] = NA #remove unrated values
+zomato = zomato %>% filter(!is.na(Aggregate_Rating))
+```
+
+
+> Since we will focusing on the ratings of restaurants, we remove restaurants with missing values.
+
+
+Exploratory Analysis {data-icon="fa-chart-pie" .storyboard}
+=====================================  
+
+### Distribution of Quantative Variables
+
+```{r}
+#look at distributions of variables
+ggplotly(
+  ggplot(zomato,aes(Aggregate_Rating))+geom_histogram()
+  )
+#almost a normal distriubtion
+```
+
+***
+COMMENTS INSERT HERE
+
+### Cost Distribution 
+```{r}
+ggplotly(
+  ggplot(zomato,aes(Avg_Cost_USD))+geom_histogram() #skewed to the right
+)
+```
+
+### Vote Distribution
+```{r}
+ggplotly(
+  ggplot(zomato,aes(Votes))+geom_histogram() #skewed right
+)
+```
+
+### Distribution of Countries
+```{r echo=FALSE}
+library(RColorBrewer)
+#themes for plot
+plot_themes=theme(plot.title=element_text(family="Palatino", face="bold.italic", size=15),legend.title = element_text(face = "italic", family = "Palatino"), 
+                  legend.text = element_text(face = "bold.italic",family = "Palatino"), 
+                  axis.title.y = element_text(family = "Palatino", face="italic",size = (10)),
+                  axis.text.y.left = element_text(family = "Palatino", colour = "darkgrey", size = (10)),
+                  axis.text.x.bottom = element_blank(),
+                  axis.ticks.x = element_blank())
+
+getPalette= colorRampPalette(brewer.pal(9,"RdBu"))
+
+#Closer look into Country
+Country_Frequency=ggplot(zomato,aes(Country))+geom_bar(aes(fill=Country)) + 
+  scale_fill_manual(values = getPalette(15))
+
+#printing with themes and titles 
+ggplotly(
+  Country_Frequency + plot_themes + labs(title="Country Frequency",y="Country Count",x="Countries",fill="Countries")
+)
+```
+
+
+###
+First Stage Analysis {data-icon="fa-chart-bar"}
+=====================================  
+
+
+
+Second Stage Analysis {data-icon="fa-chart-line"}
+=====================================  
+
+
+Conclusions {data-icon="fa-book"}
+===================================== 
+
+
+Discussion {data-icon="fa-comment-alt"}
+=====================================  
